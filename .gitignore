@@ -4,3 +4,14 @@
 *.ptx
 *.cubin
 *.fatbin
+
+build/
+_build/
+
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz
+*.pywz
