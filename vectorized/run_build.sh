@@ -16,6 +16,7 @@ fi
 
 cmake -DCMAKE_C_COMPILER=`which gcc` \
    -DCMAKE_CXX_COMPILER=`which g++` \
-   ../
+   -DCMAKE_BUILD_TYPE=Release \
+   ../ 2>&1 | tee ../build.log
 
-make -j `nproc` 2>&1 | tee build.log
+make -j `nproc` 2>&1 | tee -a ../build.log
