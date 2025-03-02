@@ -1,0 +1,66 @@
+[project]
+name = "test"
+version = "0.0.0"
+authors = [
+  { name="Ying Cao", email="lcy.seso@gmail.com" },
+]
+
+description = ""
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Libraries",
+]
+
+[build-system]
+requires = [
+    "cmake",
+    "packaging",
+    "setuptools >= 64.0.0",
+    "wheel",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+# Allow lines to be as long as 80.
+line-length = 80
+
+[tool.ruff.lint]
+select = [
+    # pycodestyle
+    "E",
+    # Pyflakes
+    "F",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "G",
+]
+ignore = [
+    # star imports
+    "F405", "F403",
+    # lambda expression assignment
+    "E731",
+    # Loop control variable not used within loop body
+    "B007",
+    # f-string format
+    "UP032",
+]
+
+[tool.codespell]
+ignore-words-list = "ist"
+
+[tool.isort]
+use_parentheses = true
+skip_gitignore = true
+line_length = 80
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+combine_as_imports = true
+ensure_newline_before_comments = true
