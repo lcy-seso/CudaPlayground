@@ -27,10 +27,6 @@ build-backend = "setuptools.build_meta"
 [tool.ruff]
 # Allow lines to be as long as 80.
 line-length = 80
-exclude = [
-    # External file, leaving license intact
-]
-include = ["*.py"]
 
 [tool.ruff.lint]
 select = [
@@ -56,17 +52,8 @@ ignore = [
     "UP032",
 ]
 
-[tool.yapf]
-column_limit = 80
-indent_width = 4
-based_on_style = "google"
-split_before_logical_operator = false
-dedent_closing_brackets = true
-coalesce_brackets = true
-
 [tool.codespell]
 ignore-words-list = "ist"
-skip = "./VPTQ_arxiv.pdf,./build"
 
 [tool.isort]
 use_parentheses = true
