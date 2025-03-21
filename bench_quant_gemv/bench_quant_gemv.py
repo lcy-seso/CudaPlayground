@@ -69,7 +69,6 @@ def benchmark_quant_gemv(
     for _ in range(num_warmup):
         vptq.ops.quant_gemv_v2(**gemv_args)
 
-    # Benchmark
     times = []
     start = torch.cuda.Event(enable_timing=True)
     end = torch.cuda.Event(enable_timing=True)
