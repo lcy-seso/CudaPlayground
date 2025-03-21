@@ -1,5 +1,6 @@
 """Benchmark the quantized GEMV operation."""
 
+import pytest
 import torch
 import vptq
 
@@ -44,14 +45,12 @@ def benchmark_quant_gemv(
         res_centroids,
         scale_weights,
         scale_bias,
-        bias,
     ) = data
 
-    # Warmup
     # Define common arguments for quant_gemv_v2 function
     gemv_args = {
         "x": act,
-        "bias": bias,
+        "bias": None,  # no bias in this benchmark
         "indices": main_indices,
         "centroids": centroids,
         "residual_indices": res_indices,
@@ -69,7 +68,6 @@ def benchmark_quant_gemv(
     for _ in range(num_warmup):
         vptq.ops.quant_gemv_v2(**gemv_args)
 
-    # Benchmark
     times = []
     start = torch.cuda.Event(enable_timing=True)
     end = torch.cuda.Event(enable_timing=True)
@@ -99,9 +97,7 @@ def gen_data(
     num_codebooks: int = 1,
     vec_len: int = 8,
     dtype: torch.dtype = torch.bfloat16,
-    act: torch.Tensor = None,
 ) -> tuple[
-    torch.Tensor,
     torch.Tensor,
     torch.Tensor,
     torch.Tensor,
@@ -123,13 +119,9 @@ def gen_data(
         num_codebooks: Number of codebooks.
         vec_len: Length of each vector in quantization.
         dtype: Data type for tensors.
-        act: Optional pre-generated activation tensor.
 
     Returns:
-        Tuple containing the activation tensor, main indices, centroids,
-        residual indices (twice), residual centroids, scale weights,
-        scale bias, and bias tensor.
-
+        Tuple containing the generated data for benchmarking.
     """
     mean = 2e-2
     std = 0.5
@@ -146,7 +138,6 @@ def gen_data(
     res_centroids = create_tensor((num_codebooks, num_res_centroids, vec_len))
     scale_weights = create_tensor((in_features, 1))
     scale_bias = create_tensor((in_features, 1))
-    bias = create_tensor((1, 1, out_features))
 
     # Create indices tensors
     num_indices = in_features * out_features // vec_len
@@ -170,7 +161,6 @@ def gen_data(
         res_centroids,
         scale_weights,
         scale_bias,
-        bias,
     )
 
 
@@ -204,7 +194,6 @@ def run_benchmark(
 
     Returns:
         Tuple containing mean and std of execution times.
-
     """
     # Generate data for benchmark
     data = gen_data(
@@ -230,8 +219,29 @@ def run_benchmark(
     )
 
 
-if __name__ == "__main__":
-    mean_time, std_time = run_benchmark()
-    print(  # noqa: T201
-        f"Mean time: {mean_time:.4f} ms, std_time: {std_time:.4f} ms"
+@pytest.mark.parametrize("batch_size", [1, 8, 15])  # type: ignore
+@pytest.mark.parametrize("features", [1024, 2048, 4096, 8192])  # type: ignore
+@pytest.mark.parametrize(  #
+    "out_features",
+    [1024, 4096, 8192, 14336],
+)  # type: ignore
+def test_quant_gemv_performance(
+    benchmark: pytest.fixture,
+    batch_size: int,
+    features: int,
+    out_features: int,
+) -> None:
+    """Test the performance of quant_gemv with different hyperparameters.
+
+    Args:
+        benchmark: The pytest-benchmark fixture
+        batch_size: Batch size for input tensor
+        features: Feature dimension for input
+        out_features: Feature dimension for output
+    """
+    benchmark(
+        run_benchmark,
+        batch_size=batch_size,
+        in_features=features,
+        out_features=out_features,
     )

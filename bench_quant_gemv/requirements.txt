@@ -1,0 +1,7 @@
+# Core requirements
+torch>=2.0.0
+pytest>=8.0.0
+pytest-benchmark>=5.0.0
+
+# Project-specific requirements
+# Add other project dependencies here
