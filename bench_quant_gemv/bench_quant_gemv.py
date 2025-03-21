@@ -1,71 +1,230 @@
+"""Benchmark the quantized GEMV operation."""
+
 import torch
 import vptq
 
 torch.manual_seed(1234)
-dtype = torch.bfloat16
-device = torch.device("cuda", 0)
+if not torch.cuda.is_available():
+    raise RuntimeError("CUDA is not available")
+device = torch.device("cuda")
 
 
-def test_quant_gemv(x: torch.Tensor,
-                    in_features: int,
-                    out_features: int,
-                    batch_size: int,
-                    length: int,
-                    num_centroids: int,
-                    num_res_centroids: int,
-                    num_codebooks: int = 1,
-                    vector_length: int = 8):
+def benchmark_quant_gemv(
+    data: tuple,
+    vector_length: int,
+    num_codebooks: int,
+    num_centroids: int,
+    num_res_centroids: int,
+    out_features: int,
+    num_warmup: int = 10,
+    num_runs: int = 100,
+) -> tuple[float, float]:
+    """
+    Benchmark the quantized GEMV operation.
 
+    Args:
+        data: Tuple containing the input data for the GEMV operation.
+        num_warmup: Number of warmup iterations.
+        num_runs: Number of benchmark runs.
+
+    Returns:
+        Tuple containing the mean and standard deviation of the benchmark times.
+    """
+    (
+        act,
+        main_indices,
+        centroids,
+        res_indices,
+        res_indices,
+        res_centroids,
+        scale_weights,
+        scale_bias,
+        bias,
+    ) = data
+
+    # Warmup
+    # Define common arguments for quant_gemv_v2 function
+    gemv_args = {
+        "x": act,
+        "bias": bias,
+        "indices": main_indices,
+        "centroids": centroids,
+        "residual_indices": res_indices,
+        "residual_centroids": res_centroids,
+        "scale_weights": scale_weights,
+        "scale_bias": scale_bias,
+        "vector_len": vector_length,
+        "num_codebooks": num_codebooks,
+        "num_centroids": num_centroids,
+        "num_residual_centroids": num_res_centroids,
+        "out_features": out_features,
+    }
+
+    # Warmup
+    for _ in range(num_warmup):
+        vptq.ops.quant_gemv_v2(**gemv_args)
+
+    # Benchmark
+    times = []
+    start = torch.cuda.Event(enable_timing=True)
+    end = torch.cuda.Event(enable_timing=True)
+
+    for _ in range(num_runs):
+        start.record()
+        vptq.ops.quant_gemv_v2(**gemv_args)
+        end.record()
+
+        torch.cuda.synchronize()
+        times.append(start.elapsed_time(end))
+
+    times_tensor = torch.tensor(times)
+    mean_time = times_tensor.mean().item()
+    std_time = times_tensor.std().item()
+
+    return mean_time, std_time
+
+
+def gen_data(
+    in_features: int,
+    out_features: int,
+    num_centroids: int,
+    num_res_centroids: int,
+    batch_size: int,
+    length: int = 1,
+    num_codebooks: int = 1,
+    vec_len: int = 8,
+    dtype: torch.dtype = torch.bfloat16,
+    act: torch.Tensor = None,
+) -> tuple[
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+]:
+    """Generate data for the quantized GEMV benchmark.
+
+    Args:
+        in_features: Input feature dimension
+        out_features: Output feature dimension
+        num_centroids: Number of centroids for quantization
+        num_res_centroids: Number of residual centroids
+        batch_size: Batch size for the input tensor
+        length: Sequence length for the input tensor
+        num_codebooks: Number of codebooks
+        vector_length: Length of each vector
+        dtype: Data type for tensors
+        act: Optional pre-generated activation tensor
+
+    Returns:
+        Tuple containing the activation tensor, main indices, centroids,
+        residual indices (twice), residual centroids, scale weights,
+        and scale bias.
+    """
     mean = 2e-2
     std = 0.5
 
-    #====== generate data for unittest.  ======#
-    # the activation tensor
-    shape = (batch_size, length, in_features)
-    x = torch.normal(mean=mean,
-                     std=std,
-                     size=shape,
-                     device=device,
-                     dtype=dtype)
+    # Helper function for tensor creation
+    def create_tensor(size: tuple[int, ...]) -> torch.Tensor:
+        return torch.normal(
+            mean=mean, std=std, size=size, device=device, dtype=dtype
+        )
 
-    # generate indices for unittest.
-    num_indices = in_features * out_features // vector_length
-    num_repeats = num_indices // num_centroids
-    main_indices = torch.as_tensor(list(range(num_centroids)) * num_repeats,
-                                   device=device,
-                                   dtype=torch.uint16)
+    # Create all tensors with consistent parameters
+    act = create_tensor((batch_size, length, in_features))
+    centroids = create_tensor((num_codebooks, num_centroids, vec_len))
+    res_centroids = create_tensor((num_codebooks, num_res_centroids, vec_len))
+    scale_weights = create_tensor((in_features, 1))
+    scale_bias = create_tensor((in_features, 1))
+    bias = create_tensor((1, 1, out_features))
 
-    num_repeats = num_indices // num_res_centroids
-    res_indices = torch.as_tensor(list(range(num_res_centroids)) * num_repeats,
-                                  device=device,
-                                  dtype=torch.uint8)
+    # Create indices tensors
+    num_indices = in_features * out_features // vec_len
+    main_indices = (
+        torch.arange(num_centroids, device=device, dtype=torch.int32)
+        .repeat(num_indices // num_centroids)
+        .to(dtype=torch.uint16)
+    )
+    res_indices = (
+        torch.arange(num_res_centroids, device=device, dtype=torch.int32)
+        .repeat(num_indices // num_res_centroids)
+        .to(dtype=torch.uint8)
+    )
 
-    shape = (num_codebooks, num_centroids, vector_length)
-    centroids = torch.normal(mean=mean,
-                             std=std,
-                             size=shape,
-                             device=device,
-                             dtype=dtype)
+    return (
+        act,
+        main_indices,
+        centroids,
+        res_indices,
+        res_indices,
+        res_centroids,
+        scale_weights,
+        scale_bias,
+        bias,
+    )
 
-    shape = (num_codebooks, num_res_centroids, vector_length)
-    res_centroids = torch.normal(mean=mean,
-                                 std=std,
-                                 size=shape,
-                                 device=device,
-                                 dtype=dtype)
 
-    shape = (in_features, 1)
-    scale_weights = torch.normal(mean=mean,
-                                 std=std,
-                                 size=shape,
-                                 device=device,
-                                 dtype=dtype)
-    scale_bias = torch.normal(mean=mean,
-                              std=std,
-                              size=shape,
-                              device=device,
-                              dtype=dtype)
+def run_benchmark(
+    batch_size: int = 15,
+    seq_len: int = 1,
+    in_features: int = 4096,
+    out_features: int = 4096,
+    num_centroids: int = 8192,
+    num_res_centroids: int = 256,
+    num_codebooks: int = 1,
+    vec_len: int = 8,
+    dtype: torch.dtype = torch.bfloat16,
+    num_warmup: int = 10,
+    num_iters: int = 100,
+) -> tuple[float, float]:
+    """Benchmark the quantized GEMV operation.
+
+    Args:
+        batch_size: Batch size for the input tensor
+        seq_len: Sequence length for the input tensor
+        in_features: Input feature dimension
+        out_features: Output feature dimension
+        num_centroids: Number of centroids for quantization
+        num_res_centroids: Number of residual centroids
+        num_codebooks: Number of codebooks
+        vector_length: Length of each vector
+        dtype: Data type for tensors
+        num_warmup: Number of warmup iterations
+        num_iters: Number of benchmark iterations
+
+    Returns:
+        Tuple containing mean and std of execution times
+    """
+    # Generate data for benchmark
+    data = gen_data(
+        in_features=in_features,
+        out_features=out_features,
+        num_centroids=num_centroids,
+        num_res_centroids=num_res_centroids,
+        batch_size=batch_size,
+        length=seq_len,
+        num_codebooks=num_codebooks,
+        vec_len=vec_len,
+        dtype=dtype,
+    )
+    return benchmark_quant_gemv(
+        data,
+        vec_len,
+        num_codebooks,
+        num_centroids,
+        num_res_centroids,
+        out_features,
+        num_warmup,
+        num_iters,
+    )
 
 
 if __name__ == "__main__":
-    test_quant_gemv()
+    mean_time, std_time = run_benchmark()
+    print(  # noqa: T201
+        f"Mean time: {mean_time:.4f} ms, std_time: {std_time:.4f} ms"
+    )
