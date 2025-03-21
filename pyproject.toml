@@ -1,5 +1,5 @@
 [project]
-name = "test"
+name = "cuda-test"
 version = "0.0.0"
 authors = [
   { name="Ying Cao", email="lcy.seso@gmail.com" },
@@ -24,9 +24,15 @@ requires = [
 ]
 build-backend = "setuptools.build_meta"
 
+[tool.black]
+line-length = 80
+target-version = ['py39']
+include = '\.pyi?$'
+
 [tool.ruff]
 # Allow lines to be as long as 80.
 line-length = 80
+target-version = "py39"
 
 [tool.ruff.lint]
 select = [
@@ -39,7 +45,21 @@ select = [
     # flake8-simplify
     "SIM",
     # isort
-    "G",
+    "I",
+    # pyupgrade
+    "UP",
+    # flake8-comprehensions
+    "C4",
+    # flake8-docstrings
+    "D",
+    # flake8-unused-arguments
+    "ARG",
+    # flake8-variables-names
+    "N",
+    # flake8-return
+    "RET",
+    # flake8-print
+    "T20",
 ]
 ignore = [
     # star imports
@@ -50,17 +70,43 @@ ignore = [
     "B007",
     # f-string format
     "UP032",
+    # Missing docstring in public module
+    "D100",
+    # Missing docstring in public class
+    "D101",
+    # Missing docstring in public method
+    "D102",
+    # Missing docstring in public function
+    "D103",
 ]
 
 [tool.codespell]
 ignore-words-list = "ist"
 
 [tool.isort]
-use_parentheses = true
-skip_gitignore = true
+profile = "black"
 line_length = 80
 multi_line_output = 3
 include_trailing_comma = true
 force_grid_wrap = 0
 combine_as_imports = true
 ensure_newline_before_comments = true
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+strict_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+
+[tool.bandit]
+exclude_dirs = ["tests", "venv"]
+skips = ["B101"]
