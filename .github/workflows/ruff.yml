@@ -1,4 +1,4 @@
-name: ruff
+name: Python Linting
 
 on:
   push:
@@ -9,29 +9,56 @@ on:
       - master
 
 jobs:
-  ruff:
+  lint:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ["3.11"]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install toml==0.10.2 tomli==2.0.1
-        pip install ruff==0.6.5 codespell==2.3.0  
-        pip install isort==5.13.2 clang-format==18.1.5
+        pip install ruff==0.6.5 codespell==2.3.0
+        pip install isort==6.0.1 black==25.1.0 flake8==7.1.2 mypy==1.15.0
+        pip install flake8-bugbear flake8-comprehensions flake8-docstrings
+        pip install flake8-simplify flake8-unused-arguments flake8-variables-names flake8-return flake8-print
+        pip install types-setuptools types-requests types-urllib3 types-six
+        pip install bandit pyupgrade==3.19.1
+
+    - name: Check Python code with Black
+      run: |
+        black --check --line-length=80 .
+
+    - name: Check imports with isort
+      run: |
+        isort --check --profile black .
+
+    - name: Check with flake8
+      run: |
+        flake8 --max-line-length=80
+
+    - name: Check with mypy
+      run: |
+        mypy --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs .
+
     - name: Analysing the code with ruff
       run: |
         ruff check .
+
+    - name: Run pyupgrade
+      run: |
+        pyupgrade --py39-plus $(find . -name "*.py")
+
+    - name: Security check with bandit
+      run: |
+        bandit -c pyproject.toml -r .
+
     - name: Spelling check with codespell
       run: |
-       codespell --toml pyproject.toml
-    - name: Run isort
-      run: |
-        isort . --check-only
+        codespell --toml pyproject.toml
