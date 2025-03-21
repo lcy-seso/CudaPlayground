@@ -19,16 +19,21 @@ def benchmark_quant_gemv(
     num_warmup: int = 10,
     num_runs: int = 100,
 ) -> tuple[float, float]:
-    """
-    Benchmark the quantized GEMV operation.
+    """Benchmark the quantized GEMV operation.
 
     Args:
         data: Tuple containing the input data for the GEMV operation.
+        vector_length: Length of each vector used in quantization.
+        num_codebooks: Number of codebooks used in the quantization.
+        num_centroids: Number of centroids for quantization.
+        num_res_centroids: Number of residual centroids for quantization.
+        out_features: Output feature dimension.
         num_warmup: Number of warmup iterations.
         num_runs: Number of benchmark runs.
 
     Returns:
         Tuple containing the mean and standard deviation of the benchmark times.
+
     """
     (
         act,
@@ -109,21 +114,22 @@ def gen_data(
     """Generate data for the quantized GEMV benchmark.
 
     Args:
-        in_features: Input feature dimension
-        out_features: Output feature dimension
-        num_centroids: Number of centroids for quantization
-        num_res_centroids: Number of residual centroids
-        batch_size: Batch size for the input tensor
-        length: Sequence length for the input tensor
-        num_codebooks: Number of codebooks
-        vector_length: Length of each vector
-        dtype: Data type for tensors
-        act: Optional pre-generated activation tensor
+        in_features: Input feature dimension.
+        out_features: Output feature dimension.
+        num_centroids: Number of centroids for quantization.
+        num_res_centroids: Number of residual centroids.
+        batch_size: Batch size for the input tensor.
+        length: Sequence length for the input tensor.
+        num_codebooks: Number of codebooks.
+        vec_len: Length of each vector in quantization.
+        dtype: Data type for tensors.
+        act: Optional pre-generated activation tensor.
 
     Returns:
         Tuple containing the activation tensor, main indices, centroids,
         residual indices (twice), residual centroids, scale weights,
-        and scale bias.
+        scale bias, and bias tensor.
+
     """
     mean = 2e-2
     std = 0.5
@@ -184,20 +190,21 @@ def run_benchmark(
     """Benchmark the quantized GEMV operation.
 
     Args:
-        batch_size: Batch size for the input tensor
-        seq_len: Sequence length for the input tensor
-        in_features: Input feature dimension
-        out_features: Output feature dimension
-        num_centroids: Number of centroids for quantization
-        num_res_centroids: Number of residual centroids
-        num_codebooks: Number of codebooks
-        vector_length: Length of each vector
-        dtype: Data type for tensors
-        num_warmup: Number of warmup iterations
-        num_iters: Number of benchmark iterations
+        batch_size: Batch size for the input tensor.
+        seq_len: Sequence length for the input tensor.
+        in_features: Input feature dimension.
+        out_features: Output feature dimension.
+        num_centroids: Number of centroids for quantization.
+        num_res_centroids: Number of residual centroids.
+        num_codebooks: Number of codebooks.
+        vec_len: Length of each vector in quantization.
+        dtype: Data type for tensors.
+        num_warmup: Number of warmup iterations.
+        num_iters: Number of benchmark iterations.
 
     Returns:
-        Tuple containing mean and std of execution times
+        Tuple containing mean and std of execution times.
+
     """
     # Generate data for benchmark
     data = gen_data(

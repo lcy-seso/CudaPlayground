@@ -69,6 +69,7 @@ repos:
             - flake8-variables-names
             - flake8-return
             - flake8-print
+            - pydocstyle>=6.0.0  # For enhanced docstring checking
 
 -   repo: https://github.com/executablebooks/mdformat
     rev: 0.7.22

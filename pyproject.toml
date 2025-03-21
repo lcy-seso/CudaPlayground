@@ -110,3 +110,6 @@ warn_unreachable = true
 [tool.bandit]
 exclude_dirs = ["tests", "venv"]
 skips = ["B101"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
