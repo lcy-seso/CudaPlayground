@@ -56,6 +56,21 @@ def gen_vptq_data(
             mean=mean, std=std, size=size, device=device, dtype=dtype
         )
 
+    def create_indices(
+        num_indices: int,
+        num_centroids: int,
+        device: torch.device,
+    ) -> torch.Tensor:
+        target_dtype = torch.uint16 if num_centroids > 256 else torch.uint8
+        indices = torch.arange(
+            num_centroids,
+            device=device,
+            dtype=torch.int32,
+        )
+        return indices.repeat(num_indices // num_centroids).to(
+            dtype=target_dtype
+        )
+
     # Create all tensors with consistent parameters
     act = create_tensor((batch_size, length, in_features))
     centroids = create_tensor((num_codebooks, num_centroids, vec_len))
@@ -65,16 +80,8 @@ def gen_vptq_data(
 
     # Create indices tensors
     num_indices = in_features * out_features // vec_len
-    main_indices = (
-        torch.arange(num_centroids, device=device, dtype=torch.int32)
-        .repeat(num_indices // num_centroids)
-        .to(dtype=torch.uint16)
-    )
-    res_indices = (
-        torch.arange(num_res_centroids, device=device, dtype=torch.int32)
-        .repeat(num_indices // num_res_centroids)
-        .to(dtype=torch.uint8)
-    )
+    main_indices = create_indices(num_indices, num_centroids, device)
+    res_indices = create_indices(num_indices, num_res_centroids, device)
 
     return (
         act,
