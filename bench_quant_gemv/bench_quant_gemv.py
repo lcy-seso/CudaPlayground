@@ -3,11 +3,12 @@
 import pytest
 import torch
 import vptq
+from data_utils import gen_gemv_data, gen_vptq_data
+from torch_gemv import torch_gemv
 
 torch.manual_seed(1234)
 if not torch.cuda.is_available():
     raise RuntimeError("CUDA is not available")
-device = torch.device("cuda")
 
 
 def benchmark_quant_gemv(
@@ -40,7 +41,6 @@ def benchmark_quant_gemv(
         act,
         main_indices,
         centroids,
-        res_indices,
         res_indices,
         res_centroids,
         scale_weights,
@@ -83,88 +83,50 @@ def benchmark_quant_gemv(
     times_tensor = torch.tensor(times)
     mean_time = times_tensor.mean().item()
     std_time = times_tensor.std().item()
-
     return mean_time, std_time
 
 
-def gen_data(
-    in_features: int,
-    out_features: int,
-    num_centroids: int,
-    num_res_centroids: int,
-    batch_size: int,
-    length: int = 1,
-    num_codebooks: int = 1,
-    vec_len: int = 8,
-    dtype: torch.dtype = torch.bfloat16,
-) -> tuple[
-    torch.Tensor,
-    torch.Tensor,
-    torch.Tensor,
-    torch.Tensor,
-    torch.Tensor,
-    torch.Tensor,
-    torch.Tensor,
-    torch.Tensor,
-]:
-    """Generate data for the quantized GEMV benchmark.
+def benchmark_torch_gemv(
+    data: tuple[torch.Tensor, torch.Tensor],
+    num_warmup: int = 10,
+    num_runs: int = 100,
+) -> tuple[float, float]:
+    """Benchmark the PyTorch GEMV operation.
 
     Args:
-        in_features: Input feature dimension.
-        out_features: Output feature dimension.
-        num_centroids: Number of centroids for quantization.
-        num_res_centroids: Number of residual centroids.
-        batch_size: Batch size for the input tensor.
-        length: Sequence length for the input tensor.
-        num_codebooks: Number of codebooks.
-        vec_len: Length of each vector in quantization.
-        dtype: Data type for tensors.
+        data: Tuple containing the input tensors (act, weight).
+        num_warmup: Number of warmup iterations.
+        num_runs: Number of benchmark runs.
 
     Returns:
-        Tuple containing the generated data for benchmarking.
+        Tuple containing the mean and standard deviation of the benchmark times.
     """
-    mean = 2e-2
-    std = 0.5
+    act, weight = data
 
-    # Helper function for tensor creation
-    def create_tensor(size: tuple[int, ...]) -> torch.Tensor:
-        return torch.normal(
-            mean=mean, std=std, size=size, device=device, dtype=dtype
-        )
+    # Warmup
+    for _ in range(num_warmup):
+        torch_gemv(act, weight)
 
-    # Create all tensors with consistent parameters
-    act = create_tensor((batch_size, length, in_features))
-    centroids = create_tensor((num_codebooks, num_centroids, vec_len))
-    res_centroids = create_tensor((num_codebooks, num_res_centroids, vec_len))
-    scale_weights = create_tensor((in_features, 1))
-    scale_bias = create_tensor((in_features, 1))
+    times = []
+    start = torch.cuda.Event(enable_timing=True)
+    end = torch.cuda.Event(enable_timing=True)
 
-    # Create indices tensors
-    num_indices = in_features * out_features // vec_len
-    main_indices = (
-        torch.arange(num_centroids, device=device, dtype=torch.int32)
-        .repeat(num_indices // num_centroids)
-        .to(dtype=torch.uint16)
-    )
-    res_indices = (
-        torch.arange(num_res_centroids, device=device, dtype=torch.int32)
-        .repeat(num_indices // num_res_centroids)
-        .to(dtype=torch.uint8)
-    )
+    for _ in range(num_runs):
+        start.record()
+        torch_gemv(act, weight)
+        end.record()
 
-    return (
-        act,
-        main_indices,
-        centroids,
-        res_indices,
-        res_indices,
-        res_centroids,
-        scale_weights,
-        scale_bias,
-    )
+        torch.cuda.synchronize()
+        times.append(start.elapsed_time(end))
+
+    times_tensor = torch.tensor(times)
+    mean_time = times_tensor.mean().item()
+    std_time = times_tensor.std().item()
+    return mean_time, std_time
 
 
 def run_benchmark(
+    implementation: str = "vptq",
     batch_size: int = 15,
     seq_len: int = 1,
     in_features: int = 4096,
@@ -174,12 +136,14 @@ def run_benchmark(
     num_codebooks: int = 1,
     vec_len: int = 8,
     dtype: torch.dtype = torch.bfloat16,
+    device_str: str = "cuda",
     num_warmup: int = 10,
     num_iters: int = 100,
 ) -> tuple[float, float]:
-    """Benchmark the quantized GEMV operation.
+    """Benchmark the GEMV operation.
 
     Args:
+        implementation: Which implementation to benchmark ("vptq" or "torch").
         batch_size: Batch size for the input tensor.
         seq_len: Sequence length for the input tensor.
         in_features: Input feature dimension.
@@ -189,14 +153,26 @@ def run_benchmark(
         num_codebooks: Number of codebooks.
         vec_len: Length of each vector in quantization.
         dtype: Data type for tensors.
+        device_str: Device to place tensors on (e.g. "cuda" or "cpu").
         num_warmup: Number of warmup iterations.
         num_iters: Number of benchmark iterations.
 
     Returns:
         Tuple containing mean and std of execution times.
     """
-    # Generate data for benchmark
-    data = gen_data(
+    if implementation != "vptq":
+        # Generate data for torch benchmark
+        data = gen_gemv_data(
+            in_features=in_features,
+            out_features=out_features,
+            batch_size=batch_size,
+            device_str=device_str,
+            dtype=dtype,
+        )
+        return benchmark_torch_gemv(data, num_warmup, num_iters)
+
+    # Generate data for vptq benchmark
+    data_quant_gemv = gen_vptq_data(
         in_features=in_features,
         out_features=out_features,
         num_centroids=num_centroids,
@@ -206,9 +182,10 @@ def run_benchmark(
         num_codebooks=num_codebooks,
         vec_len=vec_len,
         dtype=dtype,
+        device_str=device_str,
     )
     return benchmark_quant_gemv(
-        data,
+        data_quant_gemv,
         vec_len,
         num_codebooks,
         num_centroids,
@@ -219,29 +196,71 @@ def run_benchmark(
     )
 
 
-@pytest.mark.parametrize("batch_size", [1, 8, 15])  # type: ignore
-@pytest.mark.parametrize("features", [1024, 2048, 4096, 8192])  # type: ignore
-@pytest.mark.parametrize(  #
-    "out_features",
-    [1024, 4096, 8192, 14336],
-)  # type: ignore
-def test_quant_gemv_performance(
+@pytest.mark.parametrize("implementation", ["vptq", "torch"])  # type: ignore
+@pytest.mark.parametrize("batch_size", [1])  # type: ignore
+@pytest.mark.parametrize(  # type: ignore
+    "in_features", [1024, 2048, 4096, 8192, 16384]
+)
+@pytest.mark.parametrize(  # type: ignore
+    "out_features", [1024, 4096, 8192, 14336, 28672, 53248]
+)
+def test_gemv_performance(
     benchmark: pytest.fixture,
+    implementation: str,
     batch_size: int,
-    features: int,
+    in_features: int,
     out_features: int,
 ) -> None:
-    """Test the performance of quant_gemv with different hyperparameters.
+    """Test the performance of GEMV implementations.
 
     Args:
         benchmark: The pytest-benchmark fixture
+        implementation: Which implementation to benchmark
         batch_size: Batch size for input tensor
-        features: Feature dimension for input
+        in_features: Feature dimension for input
         out_features: Feature dimension for output
     """
     benchmark(
         run_benchmark,
+        implementation=implementation,
         batch_size=batch_size,
-        in_features=features,
+        in_features=in_features,
         out_features=out_features,
     )
+
+
+if __name__ == "__main__":
+    # test directly without using pytest
+    batch_size = 1
+    in_features = [1024, 2048, 4096, 8192, 16384]
+    out_features = [1024, 4096, 8192, 14336, 28672, 53248]
+
+    header = (
+        "|batch_size|in_features|out_features|" "vptq (ms)|torch (ms)|ratio|\n"
+    )
+    header += "|---|---|---|---|---|---|\n"
+    print(header, end="")  # noqa: T201
+
+    for in_feature in in_features:
+        for out_feature in out_features:
+            mean1, std1 = run_benchmark(
+                implementation="vptq",
+                batch_size=batch_size,
+                in_features=in_feature,
+                out_features=out_feature,
+            )
+
+            mean2, std2 = run_benchmark(
+                implementation="torch",
+                batch_size=batch_size,
+                in_features=in_feature,
+                out_features=out_feature,
+            )
+
+            row = (
+                f"|{batch_size}|{in_feature}|"
+                f"{out_feature}|{mean1:.4f}|"
+                f"{mean2:.4f}|"
+                f"{mean1 / mean2:.2f}|\n"
+            )
+            print(row, end="")  # noqa: T201

@@ -9,7 +9,7 @@ mkdir -p benchmark
 # Run the benchmarks
 python -m pytest bench_quant_gemv.py -v \
     --benchmark-only \
-    --benchmark-json benchmark/results.json
+    --benchmark-json benchmark/results.json 2>&1 | tee benchmark/results.log
 
 # Check the exit status
 status=$?

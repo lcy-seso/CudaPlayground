@@ -1,10 +1,8 @@
-## Benchmarks
-
-### Quantized GEMV Benchmarks
+## Quantized GEMV Benchmarks
 
 The project includes performance benchmarks for quantized GEMV operations.
 
-#### Setup
+### Setup
 
 Install the required packages:
 
@@ -12,7 +10,7 @@ Install the required packages:
 pip install -r requirements.txt
 ```
 
-#### Running Benchmarks
+### Running Benchmarks
 
 The easiest way to run benchmarks is using the provided script:
 
@@ -37,8 +35,8 @@ python -m pytest bench_quant_gemv.py -v --benchmark-only
 python -m pytest bench_quant_gemv.py -v --benchmark-json benchmark/results.json
 ```
 
-The benchmark tests different combinations of:
+### Test Environment
 
-- Batch sizes: 1, 8, 15
-- Input feature dimensions: 1024, 2048, 4096
-- Output feature dimensions: 1024, 4096
+- **GPU**: NVIDIA Tesla A100
+- **CUDA Version**: 12.6
+- **Based on VPTQ's commit**: `91d3cbe514dd55cb0c283278f2bf85ba5d96bc83`
