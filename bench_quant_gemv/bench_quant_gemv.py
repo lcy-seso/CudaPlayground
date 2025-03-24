@@ -204,12 +204,16 @@ def run_benchmark(
 @pytest.mark.parametrize(  # type: ignore
     "out_features", [1024, 4096, 8192, 14336, 28672, 53248]
 )
+@pytest.mark.parametrize("num_centroids", [4096, 8192])  # type: ignore
+@pytest.mark.parametrize("num_res_centroids", [256, 512])  # type: ignore
 def test_gemv_performance(
     benchmark: pytest.fixture,
     implementation: str,
     batch_size: int,
     in_features: int,
     out_features: int,
+    num_centroids: int,
+    num_res_centroids: int,
 ) -> None:
     """Test the performance of GEMV implementations.
 
@@ -219,6 +223,8 @@ def test_gemv_performance(
         batch_size: Batch size for input tensor
         in_features: Feature dimension for input
         out_features: Feature dimension for output
+        num_centroids: Number of main centroids for quantization
+        num_res_centroids: Number of residual centroids for quantization
     """
     benchmark(
         run_benchmark,
@@ -226,6 +232,8 @@ def test_gemv_performance(
         batch_size=batch_size,
         in_features=in_features,
         out_features=out_features,
+        num_centroids=num_centroids,
+        num_res_centroids=num_res_centroids,
     )
 
 
@@ -234,33 +242,42 @@ if __name__ == "__main__":
     batch_size = 1
     in_features = [1024, 2048, 4096, 8192, 16384]
     out_features = [1024, 4096, 8192, 14336, 28672, 53248]
+    num_centroids = [4096, 8192]
+    num_res_centroids = [256, 512]
 
     header = (
-        "|batch_size|in_features|out_features|" "vptq (ms)|torch (ms)|ratio|\n"
+        "|batch_size|in_features|out_features|"
+        "main_centroids|residual_centroids|"
+        "vptq (ms)|torch (ms)|ratio|\n"
     )
-    header += "|---|---|---|---|---|---|\n"
+    header += "|---|---|---|---|---|---|---|---|\n"
     print(header, end="")  # noqa: T201
 
-    for in_feature in in_features:
-        for out_feature in out_features:
-            mean1, std1 = run_benchmark(
-                implementation="vptq",
-                batch_size=batch_size,
-                in_features=in_feature,
-                out_features=out_feature,
-            )
+    for num_res_centroid in num_res_centroids:
+        for num_centroid in num_centroids:
+            for out_feature in out_features:
+                for in_feature in in_features:
+                    mean1, std1 = run_benchmark(
+                        implementation="vptq",
+                        batch_size=batch_size,
+                        in_features=in_feature,
+                        out_features=out_feature,
+                        num_centroids=num_centroid,
+                        num_res_centroids=num_res_centroid,
+                    )
 
-            mean2, std2 = run_benchmark(
-                implementation="torch",
-                batch_size=batch_size,
-                in_features=in_feature,
-                out_features=out_feature,
-            )
+                    mean2, std2 = run_benchmark(
+                        implementation="torch",
+                        batch_size=batch_size,
+                        in_features=in_feature,
+                        out_features=out_feature,
+                    )
 
-            row = (
-                f"|{batch_size}|{in_feature}|"
-                f"{out_feature}|{mean1:.4f}|"
-                f"{mean2:.4f}|"
-                f"{mean1 / mean2:.2f}|\n"
-            )
-            print(row, end="")  # noqa: T201
+                    row = (
+                        f"|{batch_size}|{in_feature}|"
+                        f"{out_feature}|{num_centroid}|{num_res_centroid}|"
+                        f"{mean1:.4f}|"
+                        f"{mean2:.4f}|"
+                        f"{mean1 / mean2:.2f}|\n"
+                    )
+                    print(row, end="")  # noqa: T201
