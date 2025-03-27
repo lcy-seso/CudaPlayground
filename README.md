@@ -1,1 +1,1 @@
-A playground for experimenting with CUDA.
+Experiments for vector quantization.
