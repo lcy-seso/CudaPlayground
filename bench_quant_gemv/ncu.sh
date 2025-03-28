@@ -4,7 +4,6 @@
 PYTHON_PATH=$(command -v python)
 NCU_PATH=$(command -v ncu)
 
-# Most comprehensive usage with detailed metrics and export
 sudo $NCU_PATH \
     --set full \
     -o profile -f \
