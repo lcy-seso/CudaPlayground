@@ -1,46 +1,122 @@
-
+#include "kernels.cuh"
 #include "vec.cuh"
 
-#include <cuda_bf16.h>
-#include <cuda_fp16.h>
-#include <thrust/device_vector.h>
-#include <thrust/host_vector.h>
+#include <stdio.h>
 
-int main() {
-  using DType = __bfloat16;  // bfloat16 is not defined in the host
-  const int kN = 256;
+int test_vec_add4() {
+  using DType = __bfloat164;
+  const int kN = 128;  // each thread process a single bfloat164
 
-  // Host vectors for float4 (to match __bfloat4 structure)
-  thrust::host_vector<float4> h_a(kN);
-  thrust::host_vector<float4> h_b(kN);
+  // Allocate device memory
+  DType *d_a, *d_b, *d_c;
+  cudaError_t err;
 
-  // Initialize with some values
-  for (int i = 0; i < kN; ++i) {
-    h_a[i] = make_float4(i, i + 1, i + 2, i + 3);
-    h_b[i] = make_float4(2 * i, 2 * (i + 1), 2 * (i + 2), 2 * (i + 3));
+  err = cudaMalloc(&d_a, kN * sizeof(DType));
+  if (err != cudaSuccess) {
+    printf("cudaMalloc failed for d_a: %s\n", cudaGetErrorString(err));
+    return -1;
   }
 
-  // Device vectors for __bfloat4
-  thrust::device_vector<__bfloat4> d_a(kN);
-  thrust::device_vector<__bfloat4> d_b(kN);
-  thrust::device_vector<__bfloat4> d_c(kN);
+  err = cudaMalloc(&d_b, kN * sizeof(DType));
+  if (err != cudaSuccess) {
+    printf("cudaMalloc failed for d_b: %s\n", cudaGetErrorString(err));
+    return -1;
+  }
 
-  // Custom kernel to convert and copy data
-  auto convert_kernel = [=] __device__(const float4& f) {
-    return __bfloat4(__float2bfloat16(f.x), __float2bfloat16(f.y),
-                     __float2bfloat16(f.z), __float2bfloat16(f.w));
-  };
+  err = cudaMalloc(&d_c, kN * sizeof(DType));
+  if (err != cudaSuccess) {
+    printf("cudaMalloc failed for d_c: %s\n", cudaGetErrorString(err));
+    return -1;
+  }
 
-  // Convert and copy data
-  thrust::transform(h_a.begin(), h_a.end(), d_a.begin(), convert_kernel);
-  thrust::transform(h_b.begin(), h_b.end(), d_b.begin(), convert_kernel);
+  dim3 threads{128, 1, 1};
+  dim3 grid{1, 1, 1};
+  init_data<<<grid, threads>>>(d_a, d_b, d_c, 1.5, 2.3, 0.0, kN);
 
-  dim3 threads{32, 1, 1};
+  dim3 threads2{1, 1, 1};
+  dim3 grid2{1, 1, 1};
+
+#if defined(DEBUG)
+  printf("d_a:\n");
+  debug_print_bfloat164<<<grid2, threads2>>>(d_a, kN);
+  cudaDeviceSynchronize();
+
+  printf("d_b:\n");
+  debug_print_bfloat164<<<grid2, threads2>>>(d_b, kN);
+  cudaDeviceSynchronize();
+#endif
+
+  vec_add4<<<grid, threads>>>(d_a, d_b, d_c, kN);
+  cudaDeviceSynchronize();
+
+  printf("results:\n");
+  debug_print_bfloat164<<<grid2, threads2>>>(d_c, kN);
+  cudaDeviceSynchronize();
+
+  cudaFree(d_a);
+  cudaFree(d_b);
+  cudaFree(d_c);
+  return 0;
+}
+
+int test_vec_add8() {
+  using DType = __bfloat168;
+  const int kN = 128;  // each thread process a single bfloat168
+
+  DType *d_a, *d_b, *d_c;
+  cudaError_t err;
+
+  err = cudaMalloc(&d_a, kN * sizeof(DType));
+  if (err != cudaSuccess) {
+    printf("cudaMalloc failed for d_a: %s\n", cudaGetErrorString(err));
+    return -1;
+  }
+
+  err = cudaMalloc(&d_b, kN * sizeof(DType));
+  if (err != cudaSuccess) {
+    printf("cudaMalloc failed for d_b: %s\n", cudaGetErrorString(err));
+    return -1;
+  }
+
+  err = cudaMalloc(&d_c, kN * sizeof(DType));
+  if (err != cudaSuccess) {
+    printf("cudaMalloc failed for d_c: %s\n", cudaGetErrorString(err));
+    return -1;
+  }
+
+  dim3 threads{128, 1, 1};
   dim3 grid{1, 1, 1};
 
-  vecAdd<<<grid, threads>>>(thrust::raw_pointer_cast(d_a.data()),
-                            thrust::raw_pointer_cast(d_b.data()),
-                            thrust::raw_pointer_cast(d_c.data()), kN);
+  init_data<<<grid, threads>>>(d_a, d_b, d_c, 1.5f, 2.3f, 0.0f, kN);
 
+  dim3 threads2{1, 1, 1};
+  dim3 grid2{1, 1, 1};
+
+#if defined(DEBUG)
+  printf("d_a:\n");
+  debug_print_bfloat164<<<grid2, threads2>>>(d_a, kN);
+  cudaDeviceSynchronize();
+
+  printf("d_b:\n");
+  debug_print_bfloat164<<<grid2, threads2>>>(d_b, kN);
+  cudaDeviceSynchronize();
+#endif
+
+  vec_add8<<<grid, threads>>>(d_a, d_b, d_c, kN);
+  cudaDeviceSynchronize();
+
+  printf("d_c:\n");
+  debug_print_bfloat168<<<grid2, threads2>>>(d_c, kN);
+  cudaDeviceSynchronize();
+
+  cudaFree(d_a);
+  cudaFree(d_b);
+  cudaFree(d_c);
+  return 0;
+}
+
+int main() {
+  test_vec_add4();
+  test_vec_add8();
   return 0;
 }

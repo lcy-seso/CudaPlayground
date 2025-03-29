@@ -1,47 +1,37 @@
 #!/bin/bash
-set -o pipefail
 
-if [ ! -d "build" ]; then
-  mkdir build
+set -e # Exit on error
+
+# Create build directory if it doesn't exist
+if [ ! -d _build ]; then
+    mkdir _build || {
+        echo "Failed to create _build directory"
+        exit 1
+    }
 fi
 
-cd build || exit 1
-
-if [ -d CMakeCache.txt ]; then
-  rm CMakeCache.txt
+# Clean previous build artifacts
+if [ -d _build/CMakeFiles ]; then
+    rm -rf _build/CMakeFiles
 fi
 
-if [ -d CMakeFiles ]; then
-  rm -rf CMakeFiles
+if [ -f _build/CMakeCache.txt ]; then
+    rm -f _build/CMakeCache.txt
 fi
 
-# Store compiler paths before using them
-C_COMPILER="$(command -v gcc)"
-CXX_COMPILER="$(command -v g++)"
+cd _build
 
-# Preserve exit code with pipefail
-cmake -DCMAKE_C_COMPILER="${C_COMPILER}" \
-  -DCMAKE_CXX_COMPILER="${CXX_COMPILER}" \
-  -DCMAKE_BUILD_TYPE=Release \
-  ../ 2>&1 | tee ../build.log
+cmake ..
 
-CMAKE_EXIT=$?
-if [ $CMAKE_EXIT -ne 0 ]; then
-  echo "CMake configuration failed with exit code $CMAKE_EXIT"
-  exit $CMAKE_EXIT
-fi
+make
 
-# Get the number of processors first to avoid masking return value
-NUM_PROCS=$(nproc)
-if [ $? -ne 0 ]; then
-  echo "Failed to determine number of processors with nproc"
-  NUM_PROCS=1
-fi
+cd ../
 
-# Preserve exit code with variable
-make -j "$NUM_PROCS" 2>&1 | tee -a ../build.log
-MAKE_EXIT=$?
-if [ $MAKE_EXIT -ne 0 ]; then
-  echo "Make build failed with exit code $MAKE_EXIT"
-  exit $MAKE_EXIT
+# Run the executable and capture output
+./_build/vec_test >run.log 2>&1
+RUN_STATUS=$?
+cat run.log
+if [ $RUN_STATUS -ne 0 ]; then
+    echo "Program execution failed"
+    exit 1
 fi
