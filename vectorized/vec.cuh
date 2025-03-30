@@ -9,7 +9,11 @@ typedef __nv_bfloat162 __bfloat162;
 
 #define HOST_DEVICE __forceinline__ __host__ __device__
 
-struct __align__(8) __bfloat164 {  // packed 64-bit data
+// This struct represents a 64-bit vector containing 4 bfloat16 values.
+// It is designed to efficiently utilize GPU's vectorization capabilities
+// beyond the default 32-bit bfloat162 operations.
+// packed 64-bit data, sizeof(bfloat164) = 8
+struct __align__(8) __bfloat164 {
   __bfloat162 x, y;
 
   HOST_DEVICE __bfloat164() : x(), y() {}
@@ -70,7 +74,11 @@ HOST_DEVICE __bfloat164 operator*(const __bfloat164& a, const __bfloat164& b) {
   return __bfloat164(__hmul2(a.x, b.x), __hmul2(a.y, b.y));
 }
 
-struct __align__(16) __bfloat168 {  // packed 128-bit data
+// This struct represents a 128-bit vector containing 8 bfloat16 values.
+// It is designed to efficiently utilize GPU's vectorization capabilities
+// beyond the default 32-bit bfloat162 operations.
+// packed 128-bit data, sizeof(bfloat168) = 16
+struct __align__(16) __bfloat168 {
   __bfloat164 x, y;
 
   HOST_DEVICE __bfloat168() : x(), y() {}
