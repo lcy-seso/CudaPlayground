@@ -1,8 +1,7 @@
 #!/bin/bash
 
-set -e # Exit on error
+set -e
 
-# Create build directory if it doesn't exist
 if [ ! -d _build ]; then
     mkdir _build || {
         echo "Failed to create _build directory"
@@ -10,28 +9,38 @@ if [ ! -d _build ]; then
     }
 fi
 
-# Clean previous build artifacts
-if [ -d _build/CMakeFiles ]; then
-    rm -rf _build/CMakeFiles
-fi
-
-if [ -f _build/CMakeCache.txt ]; then
-    rm -f _build/CMakeCache.txt
-fi
-
 cd _build
+
+if [ -f vec_test ]; then
+    rm vec_test
+fi
+
+# Clean previous build artifacts
+if [ -d CMakeFiles ]; then
+    rm -rf CMakeFiles
+fi
+
+if [ -f CMakeCache.txt ]; then
+    rm -f CMakeCache.txt
+fi
 
 cmake ..
 
-make
+make -j32
 
-cd ../
+if [ -f vec_test ]; then
+    echo "build success"
+    ./vec_test >../run.log 2>&1
 
-# Run the executable and capture output
-./_build/vec_test >run.log 2>&1
-RUN_STATUS=$?
-cat run.log
-if [ $RUN_STATUS -ne 0 ]; then
-    echo "Program execution failed"
+    RUN_STATUS=$?
+    cat ../run.log
+    if [ $RUN_STATUS -ne 0 ]; then
+        echo "Program execution failed"
+        exit 1
+    fi
+else
+    echo "build failed"
     exit 1
 fi
+
+cd ../

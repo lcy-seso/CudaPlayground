@@ -9,6 +9,7 @@ include(generic)
 
 find_package(CUDA REQUIRED)
 include_directories(${CUDA_INCLUDE_DIRS})
+include_directories(${PROJECT_SOURCE_DIR}/../utils)
 
 set(CUDA_NVCC_FLAGS
     "${CUDA_NVCC_FLAGS} --extended-lambda  --keep --source-in-ptx")
