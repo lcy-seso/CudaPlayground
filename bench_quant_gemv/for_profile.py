@@ -58,6 +58,7 @@ def benchmark_quant_gemv(
         "num_residual_centroids": num_res_centroids,
         "out_features": out_features,
     }
+
     for _ in range(20):  # warm up
         vptq.ops.quant_gemv_v2(**gemv_args)
 
