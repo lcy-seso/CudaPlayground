@@ -1,5 +1,6 @@
 """Benchmark the quantized GEMV operation."""
 
+import numpy as np
 import torch
 import vptq
 from data_utils import gen_vptq_data
@@ -17,7 +18,7 @@ def benchmark_quant_gemv(
     num_res_centroids: int,
     out_features: int,
     num_runs: int = 50,
-) -> None:
+) -> tuple[float, float]:
     """Benchmark the quantized GEMV operation.
 
     Args:
@@ -42,7 +43,6 @@ def benchmark_quant_gemv(
         scale_bias,
     ) = data
 
-    # Define common arguments for quant_gemv_v2 function
     gemv_args = {
         "x": act,
         "bias": None,  # no bias in this benchmark
@@ -58,14 +58,28 @@ def benchmark_quant_gemv(
         "num_residual_centroids": num_res_centroids,
         "out_features": out_features,
     }
-    for _ in range(num_runs):
+    for _ in range(20):  # warm up
         vptq.ops.quant_gemv_v2(**gemv_args)
+
+    times = []
+
+    start = torch.cuda.Event(enable_timing=True)
+    end = torch.cuda.Event(enable_timing=True)
+    for _ in range(num_runs):
+        start.record()
+        vptq.ops.quant_gemv_v2(**gemv_args)
+        end.record()
+        torch.cuda.synchronize()
+
+        times.append(start.elapsed_time(end))
+
+    return np.mean(times), np.std(times)
 
 
 if __name__ == "__main__":
     batch_size = 1
-    in_feature = 1024
-    out_feature = 8672
+    in_feature = 10240
+    out_feature = 81920
     num_centroid = 8192  # 2^13
     num_res_centroid = 256  # 2^8
 
@@ -74,7 +88,7 @@ if __name__ == "__main__":
     vec_len = 8
     dtype = torch.bfloat16
     device_str = "cuda"
-    num_iters = 10
+    num_iters = 500
 
     data_quant_gemv = gen_vptq_data(
         in_features=in_feature,
@@ -89,7 +103,7 @@ if __name__ == "__main__":
         device_str=device_str,
     )
 
-    benchmark_quant_gemv(
+    mean_time, std_time = benchmark_quant_gemv(
         data_quant_gemv,
         vec_len,
         num_codebook,
@@ -98,4 +112,5 @@ if __name__ == "__main__":
         out_feature,
         num_iters,
     )
-    print("Benchmark completed")  # noqa: T201
+
+    print(f"Mean time: {mean_time:.4f}, Std time: {std_time:.4f}")  # noqa: T201
