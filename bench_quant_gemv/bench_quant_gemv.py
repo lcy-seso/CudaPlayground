@@ -246,13 +246,14 @@ if __name__ == "__main__":
     num_res_centroids = [256, 512]
 
     header = (
-        "|batch_size|in_features|out_features|"
+        "|count|batch_size|in_features|out_features|"
         "main_centroids|residual_centroids|"
         "vptq (ms)|torch (ms)|ratio|\n"
     )
-    header += "|---|---|---|---|---|---|---|---|\n"
+    header += "|---|---|---|---|---|---|---|---|---|\n"
     print(header, end="")  # noqa: T201
 
+    count = 1
     for num_res_centroid in num_res_centroids:
         for num_centroid in num_centroids:
             for out_feature in out_features:
@@ -274,10 +275,11 @@ if __name__ == "__main__":
                     )
 
                     row = (
-                        f"|{batch_size}|{in_feature}|"
+                        f"|{count}|{batch_size}|{in_feature}|"
                         f"{out_feature}|{num_centroid}|{num_res_centroid}|"
                         f"{mean1:.4f}|"
                         f"{mean2:.4f}|"
                         f"{mean1 / mean2:.2f}|\n"
                     )
                     print(row, end="")  # noqa: T201
+                    count += 1
