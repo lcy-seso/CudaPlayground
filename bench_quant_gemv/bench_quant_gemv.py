@@ -42,7 +42,6 @@ def benchmark_quant_gemv(
         main_indices,
         centroids,
         res_indices,
-        res_centroids,
         scale_weights,
         scale_bias,
     ) = data
@@ -54,7 +53,6 @@ def benchmark_quant_gemv(
         "indices": main_indices,
         "centroids": centroids,
         "residual_indices": res_indices,
-        "residual_centroids": res_centroids,
         "scale_weights": scale_weights,
         "scale_bias": scale_bias,
         "vector_len": vector_length,
