@@ -26,7 +26,6 @@ def gen_vptq_data(
     torch.Tensor,
     torch.Tensor,
     torch.Tensor,
-    torch.Tensor,
 ]:
     """Generate data for the quantized GEMV benchmark.
 
@@ -73,8 +72,10 @@ def gen_vptq_data(
 
     # Create all tensors with consistent parameters
     act = create_tensor((batch_size, length, in_features))
-    centroids = create_tensor((num_codebooks, num_centroids, vec_len))
-    res_centroids = create_tensor((num_codebooks, num_res_centroids, vec_len))
+    centroids = create_tensor(
+        (num_codebooks, num_centroids + num_res_centroids, vec_len)
+    )
+
     scale_weights = create_tensor((in_features, 1))
     scale_bias = create_tensor((in_features, 1))
 
@@ -88,7 +89,6 @@ def gen_vptq_data(
         main_indices,
         centroids,
         res_indices,
-        res_centroids,
         scale_weights,
         scale_bias,
     )

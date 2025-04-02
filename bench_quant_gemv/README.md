@@ -37,6 +37,5 @@ python -m pytest bench_quant_gemv.py -v --benchmark-json benchmark/results.json
 
 ### Test Environment
 
-- **GPU**: NVIDIA Tesla A100
+- **GPU**: NVIDIA Tesla A100 / H100
 - **CUDA Version**: 12.6
-- **Based on VPTQ's commit**: `91d3cbe514dd55cb0c283278f2bf85ba5d96bc83`
