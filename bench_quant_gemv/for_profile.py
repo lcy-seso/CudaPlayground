@@ -17,6 +17,7 @@ def benchmark_quant_gemv(
     num_centroids: int,
     num_res_centroids: int,
     out_features: int,
+    num_warmup: int = 20,
     num_runs: int = 50,
 ) -> tuple[float, float]:
     """Benchmark the quantized GEMV operation.
@@ -57,11 +58,10 @@ def benchmark_quant_gemv(
         "out_features": out_features,
     }
 
-    for _ in range(20):  # warm up
+    for _ in range(num_warmup):  # warm up
         vptq.ops.quant_gemv_v2(**gemv_args)
 
     times = []
-
     start = torch.cuda.Event(enable_timing=True)
     end = torch.cuda.Event(enable_timing=True)
     for _ in range(num_runs):
@@ -69,9 +69,7 @@ def benchmark_quant_gemv(
         vptq.ops.quant_gemv_v2(**gemv_args)
         end.record()
         torch.cuda.synchronize()
-
         times.append(start.elapsed_time(end))
-
     return np.mean(times), np.std(times)
 
 
@@ -87,6 +85,8 @@ if __name__ == "__main__":
     vec_len = 8
     dtype = torch.bfloat16
     device_str = "cuda"
+
+    num_warmup = 20
     num_iters = 500
 
     data_quant_gemv = gen_vptq_data(
@@ -109,6 +109,7 @@ if __name__ == "__main__":
         num_centroid,
         num_res_centroid,
         out_feature,
+        num_warmup,
         num_iters,
     )
 
